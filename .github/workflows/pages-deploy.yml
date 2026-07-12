@@ -1,0 +1,101 @@
+# Self-healing GitHub Pages deploy (2026-07-05 — extending the 2026-07-03 CC
+# pattern from rl-command-centre to azck-site after tonight's "Deployment
+# failed, try again later" flake left the public site stale and emailed Alessio).
+#
+# This workflow:
+#   - serializes deploys per repo (concurrency group, newest wins),
+#   - retries the deploy step up to 5 times with growing waits IN THE SAME RUN,
+#     so transient failures never surface as failed runs (= no emails),
+#   - writes .deploy-stamp.txt (commit SHA + time) into the site so any
+#     instance can verify exactly which commit is live: curl <site>/.deploy-stamp.txt
+#   - only fails (and emails) when all 5 attempts die — that one email is real.
+# Repo setting build_type=workflow disables the old managed workflow.
+name: pages-deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage site
+        run: |
+          mkdir -p /tmp/site
+          # _archive stays unpublished — matches the jekyll default the legacy build had
+          rsync -a --exclude '.git' --exclude '.github' --exclude '_archive' ./ /tmp/site/
+          printf 'commit=%s\ndeployed_utc=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /tmp/site/.deploy-stamp.txt
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/site
+
+      - name: Deploy attempt 1
+        id: d1
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Wait 60s
+        if: steps.d1.outcome == 'failure'
+        run: sleep 60
+
+      - name: Deploy attempt 2
+        id: d2
+        if: steps.d1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Wait 120s
+        if: steps.d2.outcome == 'failure'
+        run: sleep 120
+
+      - name: Deploy attempt 3
+        id: d3
+        if: steps.d2.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Wait 240s
+        if: steps.d3.outcome == 'failure'
+        run: sleep 240
+
+      - name: Deploy attempt 4
+        id: d4
+        if: steps.d3.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Wait 300s
+        if: steps.d4.outcome == 'failure'
+        run: sleep 300
+
+      - name: Deploy attempt 5 (last)
+        id: d5
+        if: steps.d4.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Verdict
+        if: always()
+        run: |
+          for s in "${{ steps.d1.outcome }}" "${{ steps.d2.outcome }}" "${{ steps.d3.outcome }}" "${{ steps.d4.outcome }}" "${{ steps.d5.outcome }}"; do
+            if [ "$s" = "success" ]; then echo "Deployed OK."; exit 0; fi
+          done
+          echo "::error::All 5 deploy attempts failed — GitHub Pages needs eyes."
+          exit 1
