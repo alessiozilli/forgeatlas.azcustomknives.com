@@ -9,6 +9,12 @@
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Forge Atlas">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
@@ -212,5 +218,8 @@
   AZ Custom Knives Ltd · Alberta, Canada · <a href="mailto:alessio@azcustomknives.com">alessio@azcustomknives.com</a>
 </footer>
 
+<script>
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(function(){});
+</script>
 </body>
 </html>
